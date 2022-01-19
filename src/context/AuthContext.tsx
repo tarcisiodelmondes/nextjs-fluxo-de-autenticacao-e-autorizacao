@@ -25,18 +25,41 @@ type AuthProviderProps = {
   children: ReactNode;
 };
 
+export const AuthContext = createContext({} as AuthContextData);
+
+let authChannel: BroadcastChannel;
+
 export function signOut() {
   destroyCookie(undefined, "nextAuth.token");
   destroyCookie(undefined, "nextAuth.refreshToken");
 
+  authChannel.postMessage("signOut");
+
   Router.push("/");
 }
-
-export const AuthContext = createContext({} as AuthContextData);
 
 export function AuthContextProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User>();
   const isAuthenticated = !!user;
+
+  useEffect(() => {
+    authChannel = new BroadcastChannel("auth");
+
+    authChannel.onmessage = (message) => {
+      switch (message.data) {
+        case "signOut":
+          Router.push("/");
+          break;
+
+        case "signIn":
+          Router.push("/dashboard");
+          break;
+
+        default:
+          break;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const { "nextAuth.token": token } = parseCookies();
@@ -78,6 +101,8 @@ export function AuthContextProvider({ children }: AuthProviderProps) {
       });
 
       api.defaults.headers["Authorization"] = `Bearer ${token}`;
+
+      authChannel.postMessage("signOut");
 
       Router.push("/dashboard");
     } catch (error) {
